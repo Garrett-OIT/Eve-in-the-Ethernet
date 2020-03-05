@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Eve BPF
+
+[Service]
+Type=simple
+ExecStart=/bin/python /eve/eve.py
+ExecStop=/bin/python /eve/eve_clean.py
+
+[Install]
+WantedBy=multi-user.target
