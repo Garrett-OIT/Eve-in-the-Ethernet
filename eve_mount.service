@@ -1,0 +1,7 @@
+[Unit]
+Description=launch mount script for eve
+
+[Service]
+EnvironmentFile=/eve/mount.conf
+Type=oneshot
+ExecStart=/eve/mountscript.sh $ARG1 $ARG2 $ARG3 $ARG4

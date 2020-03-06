@@ -1,0 +1,9 @@
+[Unit]
+Description=Start script to manage interface LED status
+
+[Service]
+Type=simple
+ExecStart=/eve/blink_interface_status.sh
+
+[Install]
+WantedBy=multi-user.target

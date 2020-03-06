@@ -5,6 +5,7 @@ from pyroute2 import IPRoute
 from bcc.utils import printb
 import time
 import socket
+import subprocess
 from ctypes import *
 
 def PrintIP(ip_h):
@@ -47,18 +48,18 @@ class IP_HEADER(Structure):
                ]
 
 # open logging file
-f = open("/home/garrett/scrap/eve/bpf_output", "ab")
+f = open("/eve/bpf_output", "ab")
 
 # load the BPF C source to compile to eBPF bytecode
-b = BPF(src_file="demo.c")
+b = BPF(src_file="eve.c")
 # below is traffic control BPF
 # this loads and compiles it
 fn = b.load_func("basic_filter", BPF.SCHED_CLS)
 
 # use pyroute2 lib as wrapper over tc
 ip = IPRoute()
-# get index of desired interface idx = ip.link_lookup(ifname="wlp4s0")[0]
-idx = ip.link_lookup(ifname="wlp4s0")[0]
+# get index of desired interface idx = ip.link_lookup(ifname="lan1")[0]
+idx = ip.link_lookup(ifname="wan")[0]
 
 #banned = b.get_table("banned_ips")
 #for k, v in sorted(banned.items(), key=lambda banned: banned[1].value):
@@ -73,23 +74,28 @@ ip.tc("add-filter", "bpf", idx, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff2"
 print("Starting packet capture...")
 max_saved = 0
 while 1:
+    time.sleep(.2)
+    subprocess.call("bash /eve/blinkLED.sh 2", shell=True)
     max_stored = b["count"][0].value
     if (max_saved < max_stored):
         # save packets from stored+1 to saved
         for i in range(max_saved, max_stored):
-            ip_header = bytes((b["headers"][c_uint(i)]))
-            f.write(ip_header);
-            #PrintIP(ip_header)
+            #ip_header = (b["headers"][c_uint(i)])
+            #f.write(ip_header);
+            ip_header = (b["headers"][c_uint(i)])
+            PrintIP(ip_header)
         max_saved = max_stored
     elif (max_saved > max_stored):
         #wrapped around
         for i in range(max_saved, 999):
-            ip_header = bytes((b["headers"][c_uint(i)]))
-            f.write(ip_header);
-            #PrintIP(ip_header)
+            #ip_header = (b["headers"][c_uint(i)])
+            #f.write(ip_header);
+            ip_header = (b["headers"][c_uint(i)])
+            PrintIP(ip_header)
         for i in range(0, max_stored):
-            ip_header = bytes((b["headers"][c_uint(i)]))
-            f.write(ip_header);
-            #PrintIP(ip_header)
+            #ip_header = (b["headers"][c_uint(i)])
+            #f.write(ip_header);
+            ip_header = (b["headers"][c_uint(i)])
+            PrintIP(ip_header)
         max_saved = max_stored
 
