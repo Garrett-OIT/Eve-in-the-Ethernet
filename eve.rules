@@ -2,7 +2,7 @@
 #ACTION=="add", RUN+="/home/garrett/tools/mountscript.sh $devnode $name 1 $env{ID_MODEL}"
 
 KERNEL=="sd[abcde]", SUBSYSTEM=="block", SUBSYSTEMS=="usb", \
- ACTION=="add", RUN+="/eve/mountscript.sh $devnode $name 1 $env{ID_MODEL}"
+ ACTION=="add", RUN+="/eve/fast_udev.sh $devnode $name 1 $env{ID_MODEL}"
 
 ENV{DEVNAME}=="/dev/sd[abcde]", SUBSYSTEM=="block", SUBSYSTEMS=="usb", , ACTION=="remove", \
  RUN+="/eve/umountscript.sh $devnode $name 1 $env{ID_MODEL}"
