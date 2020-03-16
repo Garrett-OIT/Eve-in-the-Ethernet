@@ -1,4 +1,3 @@
-// eve.c - a work in progress to save IP data
 // author - Garrett Fechter garrett.fechter@gmail.com
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
@@ -25,10 +24,11 @@ struct IP_Data {
 
 BPF_HASH(headers, u64, struct ip_t, MAX_PACKETS + 1);
 BPF_ARRAY(packets, struct IP_Data, MAX_PACKETS + 1);
-BPF_ARRAY(count, u64, 2);
+BPF_ARRAY(count, u64, 3);
+BPF_HASH(banned_ips);
 
 int basic_filter(struct __sk_buff *skb) {
-    //int ret = TC_ACT_OK;
+    int ret = TC_ACT_OK;
     int count_key = 0;
     u64 zero = 0;
     u64 *max_packet_count_p = NULL;
@@ -158,6 +158,31 @@ int basic_filter(struct __sk_buff *skb) {
     if(*max_packet_count_p > MAX_PACKETS) *max_packet_count_p = 0;
     count.update(&count_key, max_packet_count_p);
 
+    // START BAN CODE
+    u64 idx = 0;
+    u64 drop_key = 1;
+    u64 *count = 0;
+    u64 *ip_p = banned_ips.lookup(&idx);
+    u32 inc_key = 3;
+    u64 *inc = count.lookup(&inc_key);
+    if (!inc) goto cleanup;
+    if (ip_p) {
+        if (iph->src == *ip_p || iph->dst == *ip_p) {
+            if (*inc % 2 == 0) ret = TC_ACT_SHOT;
+            (*inc)++;
+            count.update(inc, &inc_key);
+        }
+    }
+    idx++;
+    ip_p = banned_ips.lookup(&idx);
+    if (ip_p) {
+        if (iph->src == *ip_p || iph->dst == *ip_p) {
+            if (*inc % 2 == 0) ret = TC_ACT_SHOT;
+            (*inc)++;
+            count.update(inc, &inc_key);
+        }
+    }
+
 cleanup:
-    return TC_ACT_OK;
+    return ret;
 }

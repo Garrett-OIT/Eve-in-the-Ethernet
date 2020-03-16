@@ -76,6 +76,19 @@ ip.tc("add", "clsact", idx2)
 ip.tc("add-filter", "bpf", idx, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff2", classid=1, direct_action=True)
 ip.tc("add-filter", "bpf", idx2, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff2", classid=1, direct_action=True)
 
+# add banned_ips into the BPF hash
+banned_ips = [ "8.8.8.8", "157.240.3.35" ]
+index = 0
+for b_ip in banned_ips:
+    ip_int = int.from_bytes(socket.inet_aton(b_ip), "big")
+    print("banning", b_ip)
+    b["banned_ips"].__setitem__(c_int(index), c_ulong(ip_int))
+    index += 1
+
+banned = b.get_table("banned_ips")
+for k, v in sorted(banned.items(), key=lambda banned: banned[1].value):
+        print("%s \"%x\"" % (socket.inet_ntoa(int.to_bytes(v.value, 4, "big")), k.value))
+
 print("Starting packet capture...")
 max_saved = 0
 while 1:

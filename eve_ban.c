@@ -26,6 +26,7 @@ struct IP_Data {
 BPF_HASH(headers, u64, struct ip_t, MAX_PACKETS + 1);
 BPF_ARRAY(packets, struct IP_Data, MAX_PACKETS + 1);
 BPF_ARRAY(count, u64, 2);
+BPF_HASH(banned_ips);
 
 int basic_filter(struct __sk_buff *skb) {
     //int ret = TC_ACT_OK;
@@ -157,6 +158,20 @@ int basic_filter(struct __sk_buff *skb) {
     (*max_packet_count_p)++;
     if(*max_packet_count_p > MAX_PACKETS) *max_packet_count_p = 0;
     count.update(&count_key, max_packet_count_p);
+
+    // START BAN CODE
+    u64 idx = 0;
+    u64 drop_key = 1;
+    u64 *count = 0;
+    u64 *ip_p = banned_ips.lookup(&idx);
+    if (ip_p) {
+        if (iph->src == *ip_p || iph->dst == *ip_p) ret = TC_ACT_SHOT;
+    }
+    idx++;
+    ip_p = banned_ips.lookup(&idx);
+    if (ip_p) {
+        if (iph->src == *ip_p || iph->dst == *ip_p) ret = TC_ACT_SHOT;
+    }
 
 cleanup:
     return TC_ACT_OK;
