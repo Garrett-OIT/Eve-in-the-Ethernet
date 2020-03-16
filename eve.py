@@ -9,21 +9,22 @@ import subprocess
 from ctypes import *
 
 def PrintIP(ip_h):
-    print(ip_h)
-    print("ver:", ip_h.ver)
-    print("hlen:", ip_h.hlen)
-    print("tos:", ip_h.tos)
-    print("tlen:", ip_h.tlen)
-    print("identification:", ip_h.identification)
-    print("ffo_unused:", ip_h.ffo_unused)
-    print("df:", ip_h.df)
-    print("mf:", ip_h.mf)
-    print("foffset:", ip_h.foffset)
-    print("ttl:", ip_h.ttl)
-    print("nextp:", ip_h.nextp)
-    print("hchecksum:", ip_h.hchecksum)
-    print("src:", socket.inet_ntoa(int.to_bytes(ip_header.src, 4, "little")))
-    print("dst:", socket.inet_ntoa(int.to_bytes(ip_header.dst, 4, "little")))
+    pass
+    #print(ip_h)
+    #print("ver:", ip_h.ver)
+    #print("hlen:", ip_h.hlen)
+    #print("tos:", ip_h.tos)
+    #print("tlen:", ip_h.tlen)
+    #print("identification:", ip_h.identification)
+    #print("ffo_unused:", ip_h.ffo_unused)
+    #print("df:", ip_h.df)
+    #print("mf:", ip_h.mf)
+    #print("foffset:", ip_h.foffset)
+    #print("ttl:", ip_h.ttl)
+    #print("nextp:", ip_h.nextp)
+    #print("hchecksum:", ip_h.hchecksum)
+    #print("src:", socket.inet_ntoa(int.to_bytes(ip_header.src, 4, "little")))
+    #print("dst:", socket.inet_ntoa(int.to_bytes(ip_header.dst, 4, "little")))
 
 def ip_t_to_IP_HEADER(ip):
     return IP_HEADER(ip.ver, ip.hlen, ip.tos, ip.tlen, ip.identification, \
@@ -48,7 +49,7 @@ class IP_HEADER(Structure):
                ]
 
 # open logging file
-f = open("/eve/bpf_output", "ab")
+f = open("bpf_output", "ab")
 
 # load the BPF C source to compile to eBPF bytecode
 b = BPF(src_file="eve.c")
@@ -59,7 +60,7 @@ fn = b.load_func("basic_filter", BPF.SCHED_CLS)
 # use pyroute2 lib as wrapper over tc
 ip = IPRoute()
 # get index of desired interface idx = ip.link_lookup(ifname="lan1")[0]
-idx = ip.link_lookup(ifname="wan")[0]
+idx = ip.link_lookup(ifname="enp0s25")[0]
 
 #banned = b.get_table("banned_ips")
 #for k, v in sorted(banned.items(), key=lambda banned: banned[1].value):
@@ -74,28 +75,33 @@ ip.tc("add-filter", "bpf", idx, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff2"
 print("Starting packet capture...")
 max_saved = 0
 while 1:
-    time.sleep(.2)
-    subprocess.call("bash /eve/blinkLED.sh 2", shell=True)
-    max_stored = b["count"][0].value
-    if (max_saved < max_stored):
-        # save packets from stored+1 to saved
-        for i in range(max_saved, max_stored):
-            #ip_header = (b["headers"][c_uint(i)])
-            #f.write(ip_header);
-            ip_header = (b["headers"][c_uint(i)])
-            PrintIP(ip_header)
-        max_saved = max_stored
-    elif (max_saved > max_stored):
-        #wrapped around
-        for i in range(max_saved, 999):
-            #ip_header = (b["headers"][c_uint(i)])
-            #f.write(ip_header);
-            ip_header = (b["headers"][c_uint(i)])
-            PrintIP(ip_header)
-        for i in range(0, max_stored):
-            #ip_header = (b["headers"][c_uint(i)])
-            #f.write(ip_header);
-            ip_header = (b["headers"][c_uint(i)])
-            PrintIP(ip_header)
-        max_saved = max_stored
-
+    try:
+        time.sleep(.2)
+        #subprocess.call("bash blinkLED.sh 2", shell=True)
+        max_stored = b["count"][0].value
+        if (max_saved < max_stored):
+            # save packets from stored+1 to saved
+            for i in range(max_saved, max_stored):
+                #print("a tlen was", b["packets"][c_int(i)])
+                ip_header = (b["headers"][c_uint(i)])
+                f.write(b["packets"][c_int(i)])
+                #ip_header = (b["headers"][c_uint(i)])
+                PrintIP(ip_header)
+            max_saved = max_stored
+        elif (max_saved > max_stored):
+            #wrapped around
+            for i in range(max_saved, 999):
+                ip_header = (b["headers"][c_uint(i)])
+                f.write(b["packets"][c_int(i)])
+                #f.write(ip_header);
+                #ip_header = (b["headers"][c_uint(i)])
+                PrintIP(ip_header)
+            for i in range(0, max_stored):
+                f.write(b["packets"][c_int(i)])
+                ip_header = (b["headers"][c_uint(i)])
+                #f.write(ip_header);
+                #ip_header = (b["headers"][c_uint(i)])
+                PrintIP(ip_header)
+            max_saved = max_stored
+    except KeyboardInterrupt:
+        ip.tc("del", "clsact", idx)
