@@ -61,20 +61,25 @@ fn = b.load_func("basic_filter", BPF.SCHED_CLS)
 # use pyroute2 lib as wrapper over tc
 ip = IPRoute()
 # get index of desired interface idx = ip.link_lookup(ifname="lan1")[0]
-idx = ip.link_lookup(ifname="wan")[0]
-idx2 = ip.link_lookup(ifname="lan0")[0]
+idx = ip.link_lookup(ifname="wlp4s0")[0]
+#idx = ip.link_lookup(ifname="wan")[0]
+#idx2 = ip.link_lookup(ifname="lan0")[0]
 
 #banned = b.get_table("banned_ips")
 #for k, v in sorted(banned.items(), key=lambda banned: banned[1].value):
 #        print("%s \"%x\"" % (socket.inet_ntoa(int.to_bytes(v.value, 4, "big")), k.value))
 
 # add cls_act to device
-ip.tc("add", "clsact", idx)
-ip.tc("add", "clsact", idx2)
+try:
+    ip.tc("add", "clsact", idx)
+except:
+    ip.tc("del", "clsact", idx)
+    ip.tc("add", "clsact", idx)
+#ip.tc("add", "clsact", idx2)
 # add ingress bpf in direct-action mode
 # direct action mode means the return from the classifier will also filter
 ip.tc("add-filter", "bpf", idx, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff2", classid=1, direct_action=True)
-ip.tc("add-filter", "bpf", idx2, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff2", classid=1, direct_action=True)
+#ip.tc("add-filter", "bpf", idx2, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff2", classid=1, direct_action=True)
 
 print("Starting packet capture...")
 max_saved = 0
@@ -89,33 +94,39 @@ while 1:
             for i in range(max_saved, max_stored):
                 #print("a tlen was", b["packets"][c_int(i)])
                 ip_header = (b["headers"][c_uint(i)])
+                entry_len = b["lens"][c_int(i)]
                 packet_bytes = b["packets"][c_int(i)]
                 f.write(ip_header)
+                f.write(entry_len)
                 f.write(packet_bytes)
-                print("i is", i)
-                print("packet_bytes is size:", sys.getsizeof(packet_bytes))
-                print("and type", type(packet_bytes))
-                print("raw data:", packet_bytes)
+                #print("i is", i)
+                #print("packet_bytes is size:", sys.getsizeof(packet_bytes))
+                #print("and type", type(packet_bytes))
+                #print("raw data:", packet_bytes)
 
                 print("packet_bytes.data is size:", sys.getsizeof(packet_bytes.data))
-                print("and type", type(packet_bytes.data))
-                print("raw data:", packet_bytes)
+                #print("and type", type(packet_bytes.data))
+                #print("raw data:", packet_bytes)
                 PrintIP(ip_header)
             max_saved = max_stored
         elif (max_saved > max_stored):
             #wrapped around
             for i in range(max_saved, 1000):
                 ip_header = (b["headers"][c_uint(i)])
-                f.write(b["packets"][c_int(i)])
-                #f.write(ip_header);
+                entry_len = b["lens"][c_int(i)]
+                packet_bytes = b["packets"][c_int(i)]
+                f.write(ip_header)
+                f.write(entry_len)
+                f.write(packet_bytes)
                 PrintIP(ip_header)
             for i in range(0, max_stored):
-                f.write(b["packets"][c_int(i)])
                 ip_header = (b["headers"][c_uint(i)])
-                #f.write(ip_header);
+                entry_len = b["lens"][c_int(i)]
+                packet_bytes = b["packets"][c_int(i)]
+                f.write(ip_header)
+                f.write(entry_len)
+                f.write(packet_bytes)
                 PrintIP(ip_header)
             max_saved = max_stored
         f.flush()
         os.fsync(f)
-    #except KeyboardInterrupt:
-    #    ip.tc("del", "clsact", idx)

@@ -11,20 +11,26 @@
 #include <net/sock.h>
 
 #define MAX_PACKETS 1000
-#define MAX_PACKET_LEN 5000
+#define MAX_PACKET_LEN 250
+#define MIN_PACKET_LEN 25
 
 //#ifndef memcpy
 //# define memcpy(dest, src, n)   __builtin_memcpy((dest), (src), (n))
 //#endif
 
-#define SAVE(x) ip_data_p->data[x] = ip_data[x]
+#define SAVE_INTERNAL(x) ip_data_p->data[x] = ip_data[x]
+
+#define SAVE(from, to) if (ip_data + to > (char *) data_end) goto save; \
+                       for (uint8_t i = from; i < to; i++) SAVE_INTERNAL(i); \
+                       save_len++;
 
 struct IP_Data {
-    char data[30];
+    char data[MAX_PACKET_LEN];
 };
 
 BPF_HASH(headers, u64, struct ip_t, MAX_PACKETS + 1);
 BPF_ARRAY(packets, struct IP_Data, MAX_PACKETS + 1);
+BPF_ARRAY(lens, uint32_t, MAX_PACKETS + 1);
 BPF_ARRAY(count, u64, 2);
 
 int basic_filter(struct __sk_buff *skb) {
@@ -46,7 +52,8 @@ int basic_filter(struct __sk_buff *skb) {
     if ((data + sizeof(*eth) + sizeof(*iph)) + 1 > data_end) goto cleanup;
     iph = data + sizeof(*eth);
     struct ip_t iph_copy = *iph;
-    unsigned int tlen = ((unsigned int*) iph)[0] >> 16;
+    unsigned int tlen = iph_copy.tlen;
+    // convert byte order
     unsigned int swap = tlen & 0xFF; //low order bits
     tlen = tlen >> 8;
     swap = swap << 8;
@@ -56,41 +63,41 @@ int basic_filter(struct __sk_buff *skb) {
     ip_data_p = packets.lookup(&count_key);
     if (ip_data_p == NULL) goto cleanup;
     //if ((void *) iph + tlen > data_end) goto cleanup;
-    if (tlen + 5  > MAX_PACKET_LEN) goto cleanup;
-    tlen++;
+    //if (tlen + 5  > MAX_PACKET_LEN) goto cleanup;
+    //tlen++;
     bpf_trace_printk("tlen was %d\n", tlen);//, asdf);
 
     //bpf_skb_load_bytes(skb, sizeof(*eth), ip_data_p->data, (u32)tlen);
     char *ip_data = data + sizeof(*eth) + sizeof(*iph);
-    if (ip_data + 51 < data_end)
-    {
-        ip_data_p->data[0] = ip_data[0];
-        ip_data_p->data[1] = ip_data[1];
-        ip_data_p->data[2] = ip_data[2];
-        ip_data_p->data[3] = ip_data[3];
-        ip_data_p->data[4] = ip_data[4];
-        ip_data_p->data[5] = ip_data[5];
-        ip_data_p->data[6] = ip_data[6];
-        ip_data_p->data[7] = ip_data[7];
-        ip_data_p->data[8] = ip_data[8];
-        ip_data_p->data[9] = ip_data[9];
-        ip_data_p->data[10] = ip_data[10];
-        ip_data_p->data[11] = ip_data[11];
-        ip_data_p->data[12] = ip_data[12];
-        SAVE(13);
-        SAVE(14);
-        SAVE(15);
-        SAVE(16);
-        SAVE(17);
-        SAVE(18);
-        SAVE(19);
-        SAVE(20);
-        SAVE(21);
-        SAVE(22);
-        SAVE(23);
-    }
 
-    bpf_trace_printk("some random data %x\n", 0xFF& ip_data_p->data[0]);//, asdf);
+    uint32_t save_len = 0;
+    SAVE(0, 10);
+    SAVE(10, 20);
+    SAVE(20, 30);
+    SAVE(30, 40);
+    SAVE(40, 50);
+    SAVE(50, 60);
+    SAVE(60, 70);
+    SAVE(70, 80);
+    SAVE(80, 90);
+    SAVE(90, 100);
+    SAVE(100, 110);
+    SAVE(110, 120);
+    SAVE(120, 130);
+    SAVE(130, 140);
+    SAVE(140, 150);
+    SAVE(150, 160);
+    SAVE(160, 170);
+    SAVE(170, 180);
+    SAVE(180, 190);
+    SAVE(190, 200);
+    SAVE(200, 210);
+    SAVE(210, 220);
+    SAVE(220, 230);
+    SAVE(230, 240);
+    SAVE(240, 250);
+
+    /*bpf_trace_printk("some random data %x\n", 0xFF& ip_data_p->data[0]);//, asdf);
     bpf_trace_printk("some random data %x\n", 0xFF&ip_data_p->data[1]);//, asdf);
     bpf_trace_printk("some random data %x\n", 0xFF&ip_data_p->data[2]);//, asdf);
     bpf_trace_printk("some random data %x\n", 0xFF&ip_data_p->data[3]);//, asdf);
@@ -114,7 +121,8 @@ int basic_filter(struct __sk_buff *skb) {
     bpf_trace_printk("some random data %d\n", ip_data_p->data[21]);//, asdf);
     bpf_trace_printk("some random data %d\n", ip_data_p->data[22]);//, asdf);
     bpf_trace_printk("some random data %d\n", ip_data_p->data[23]);//, asdf);
-
+    */
+save:
     max_packet_count_p = count.lookup(&count_key);
     if (max_packet_count_p == NULL) {
         // first time, index=0
@@ -153,6 +161,7 @@ int basic_filter(struct __sk_buff *skb) {
     //bpf_skb_load_bytes(skb, ip, copy);
     headers.update(max_packet_count_p, &iph_copy);
     packets.update((int *)max_packet_count_p, ip_data_p);
+    lens.update((int *)max_packet_count_p, &save_len);
     // increment max packet index
     (*max_packet_count_p)++;
     if(*max_packet_count_p > MAX_PACKETS) *max_packet_count_p = 0;
